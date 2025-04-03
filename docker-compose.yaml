@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  web:
+    container_name: app_container
+    build: .
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "ruby", "service": "sample_rails_app"}]'
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - DD_TRACE_AGENT_URL=http://datadog:8126
+      - DD_ENV=development
+      - DD_SERVICE=sample_rails_app
+      - DD_VERSION=1.0.0
+      - DD_PROFILING_ENABLED=true
+      - RAILS_ENV=development
+      - DATABASE_HOST=db
+      - DATABASE_USERNAME=postgres
+      - DATABASE_PASSWORD=password
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - datadog
+    command: bash -c "bundle exec rails db:create db:migrate && rails s -b 0.0.0.0"
+
+  db:
+    container_name: database_container
+    image: postgres:13
+    # PostgreSQL のログ収集が必要な場合のみ labels を残す
+    # labels:
+    #   com.datadoghq.ad.logs: '[{"source": "postgresql", "service": "rails_datadog_app"}]'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  datadog:
+    container_name: agent_container
+    hostname: rails-datadog-agent  # ← Infrastructureに表示されやすくする
+    image: datadog/agent:latest
+    ports:
+      - "8126:8126"  # APM トレース受信用
+    env_file:
+      - .env
+    environment:
+      - DD_SITE=datadoghq.com
+      - DD_APM_ENABLED=true
+      - DD_PROFILING_ENABLED=true
+      - DD_LOGS_ENABLED=true
+      - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
+      - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+      - DD_HOSTNAME=rails-datadog-agent
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./datadog/datadog.yaml:/etc/datadog-agent/datadog.yaml:ro
+      - ./datadog/conf.d:/etc/datadog-agent/conf.d:ro
+
+volumes:
+  pgdata:

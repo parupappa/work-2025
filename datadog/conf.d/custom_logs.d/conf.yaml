@@ -1,0 +1,8 @@
+logs:
+  - type: docker
+    service: rails_datadog_app
+    source: ruby
+    container_names:
+      - rails_datadog_app-web  # 実際の web コンテナ名に合わせてください
+    tags:
+      - env:development
